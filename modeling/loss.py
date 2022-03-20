@@ -45,11 +45,6 @@ class FocalLoss(nn.Module):
             regression = regressions[j, :, :]
 
             bbox_annotation = annotations[j]["bboxes"]
-            class_annotation = annotations[j]["category_ids"]
-
-            bbox_annotation = torch.cat([bbox_annotation, class_annotation.unsqueeze(1)], dim=1)
-
-            bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
 
             classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
 
@@ -68,6 +63,10 @@ class FocalLoss(nn.Module):
                 regression_losses.append(torch.tensor(0).float().cuda())
 
                 continue
+
+            class_annotation = annotations[j]["category_ids"]
+            bbox_annotation = torch.cat([bbox_annotation, class_annotation.unsqueeze(1)], dim=1)
+            bbox_annotation = bbox_annotation[bbox_annotation[:, 4] != -1]
 
             IoU = calc_iou(anchors[0, :, :], bbox_annotation[:, :4]) # num_anchors x num_annotations
 

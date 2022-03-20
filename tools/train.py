@@ -35,6 +35,7 @@ def train(cfg):
         optimizer,
         None,
         loss_fn,
+        cfg,
     )
 
 def main():

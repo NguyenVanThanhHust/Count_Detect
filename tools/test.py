@@ -2,16 +2,28 @@ import argparse
 import os
 import sys
 from os import mkdir
-
+from collections import OrderedDict
 import torch
 
 sys.path.append('.')
 from config import cfg
 from data import make_data_loader
-from engine.example_inference import inference
-from modeling import build_model
+from engine.trainer import do_test
+from modeling import build_model, build_loss
+from solver import make_optimizer
+
 from utils.logger import setup_logger
 
+def load_state_dict_from_checkpoint(model, checkpoint_path):
+    model_state_dict = torch.load(checkpoint_path)["state_dict"]
+    new_state_dict = OrderedDict()
+    for key, value in model_state_dict.items():
+        if key.startswith("model."):
+            new_key = key[6:]
+            new_state_dict[new_key] = value
+        else:
+            print("check {}".format(key))
+    return new_state_dict
 
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Template MNIST Inference")
@@ -46,10 +58,22 @@ def main():
     logger.info("Running with config:\n{}".format(cfg))
 
     model = build_model(cfg)
-    model.load_state_dict(torch.load(cfg.TEST.WEIGHT))
-    val_loader = make_data_loader(cfg, is_train=False)
+    checkpoint_path = cfg.TEST.WEIGHT
 
-    inference(cfg, model, val_loader)
+    model_state_dict = load_state_dict_from_checkpoint(model, checkpoint_path)
+    model.load_state_dict(model_state_dict)
+
+    val_loader = make_data_loader(cfg, split="test")
+
+    loss_fn = build_loss(cfg)
+
+    do_test(
+        model,
+        val_loader,
+        None, 
+        loss_fn,
+    )
+
 
 
 if __name__ == '__main__':

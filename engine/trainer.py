@@ -9,7 +9,7 @@ from torchvision import transforms
 from layers.utils import BBoxTransform, ClipBoxes
 from evaluation.metrics import dice, jaccard
 
-class LitUnet(pl.LightningModule):
+class LitModel(pl.LightningModule):
     def __init__(self, model, loss, optim):
         super().__init__()
         self.model = model
@@ -72,7 +72,8 @@ class LitUnet(pl.LightningModule):
         self.log('train_reg_loss', reg_loss.item(), on_epoch=True)
         self.log('train_class_loss', class_loss.item(), on_epoch=True)
         self.log('train_loss', (class_loss + reg_loss).item(), on_epoch=True)
-        return class_loss + reg_loss
+        # print(reg_loss.item(), class_loss.item(), (class_loss + reg_loss).item())
+        return reg_loss + class_loss
 
     def validation_step(self, batch, batch_idx):
         images, targets = batch 
@@ -113,18 +114,35 @@ def do_train(
         optimizer,
         scheduler,
         loss_fn,
+        cfg, 
     ):
 
-    unet = LitUnet(model, loss_fn, optimizer, )
+    my_model = LitModel(model, loss_fn, optimizer, )
     
     # ------------
     # training
     # ------------
-    trainer = pl.Trainer(devices=1, accelerator="gpu")
-    trainer.fit(unet, train_loader, val_loader)
+    trainer = pl.Trainer(devices=1, accelerator="gpu", gradient_clip_val=0.5, max_epochs=cfg.SOLVER.MAX_EPOCHS)
+    trainer.fit(my_model, train_loader, val_loader)
 
     # ------------
     # testing
     # ------------
     result = trainer.test(test_dataloaders=val_loader)
+    print(result)
+
+
+def do_test(
+        model,
+        val_loader,
+        optimizer,
+        loss_fn,
+    ):
+
+    my_model = LitModel(model, loss_fn, optimizer, )
+    trainer = pl.Trainer(devices=1, accelerator="gpu")
+    # ------------
+    # testing
+    # ------------
+    result = trainer.test(model=my_model, test_dataloaders=val_loader)
     print(result)
