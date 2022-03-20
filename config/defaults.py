@@ -18,18 +18,22 @@ _C = CN()
 
 _C.MODEL = CN()
 _C.MODEL.DEVICE = "cuda"
-_C.MODEL.NUM_CLASSES = 1
+_C.MODEL.NUM_CLASSES = 2
 
 # -----------------------------------------------------------------------------
 # INPUT
 # -----------------------------------------------------------------------------
 _C.INPUT = CN()
 # Size of the image during training
-_C.INPUT.FOLDER = "../crack_segmentation_dataset"
+_C.INPUT.FOLDER = "../carpk/datasets/CARPK_devkit/data"
 # Size of the image during training
-_C.INPUT.SIZE_TRAIN = 448
+_C.INPUT.MIN_SIZE_TRAIN = 608
+_C.INPUT.MAX_SIZE_TRAIN = 1024
+
 # Size of the image during test
-_C.INPUT.SIZE_TEST = 448
+_C.INPUT.MIN_SIZE_TEST = 608
+_C.INPUT.MAX_SIZE_TEST = 1024
+
 # Minimum scale for the image during training
 _C.INPUT.MIN_SCALE_TRAIN = 0.5
 # Maximum scale for the image during test
@@ -37,9 +41,9 @@ _C.INPUT.MAX_SCALE_TRAIN = 1.2
 # Random probability for image horizontal flip
 _C.INPUT.PROB = 0.5
 # Values to be used for image normalization
-_C.INPUT.PIXEL_MEAN = [0.1307, ]
+_C.INPUT.PIXEL_MEAN = (0.485, 0.456, 0.406)
 # Values to be used for image normalization
-_C.INPUT.PIXEL_STD = [0.3081, ]
+_C.INPUT.PIXEL_STD = (0.229, 0.224, 0.225)
 
 # -----------------------------------------------------------------------------
 # Dataset
