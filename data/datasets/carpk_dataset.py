@@ -10,7 +10,6 @@ import torch
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader
 
-import skimage
 
 class CarPK_Dataset(Dataset):
     def __init__(self, data_folder, split="train", transforms=None):
@@ -45,7 +44,6 @@ class CarPK_Dataset(Dataset):
             scale = max_side / largest_side
 
         # resize the image with the computed scale
-        # image = skimage.transform.resize(image, (int(round(rows*scale)), int(round((cols*scale)))))
         image = cv2.resize(image, (int(cols*scale), int(rows*scale)))
 
         rows, cols, cns = image.shape
@@ -74,6 +72,7 @@ class CarPK_Dataset(Dataset):
             lines = [l.rstrip() for l in lines]
         image = cv2.imread(img_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        height, width, _ = image.shape
 
         box_xyxy = []
         for l in lines:
@@ -100,6 +99,7 @@ class CarPK_Dataset(Dataset):
             "id": torch.from_numpy(np.array(idx)), 
             "bboxes": torch.tensor(bboxes), 
             "category_ids": torch.tensor(category_ids), 
+            "shape": torch.from_numpy(np.array([height, width]))
         }
         return image, targets
 

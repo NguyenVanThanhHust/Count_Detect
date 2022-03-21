@@ -24,7 +24,9 @@ class LitModel(pl.LightningModule):
         self.thresh = thresh
 
         self.predictions = dict()
-        self.predictions["predictions"] = list()
+        self.predictions["categories"] = [{'name': 'fg', 'id': 1}]
+        self.predictions["images"] = list()
+        self.predictions["annotations"] = list()
         self.anno_id = 1
 
     def forward(self, x):
@@ -86,12 +88,22 @@ class LitModel(pl.LightningModule):
         preds = self.model(images)
         losses = self.loss(preds, targets)
         class_loss, reg_loss = losses
+
         post_processed_preds = self.forward(images)
         ids = [t["id"].item() for t in targets]
+        shapes = [t["shape"].detach().cpu().numpy() for t in targets]
         pred_scores, pred_boxes = post_processed_preds
-        for each_id, scores, boxes in zip(ids, pred_scores, pred_boxes):
+        for each_id, scores, boxes, shape, img in zip(ids, pred_scores, pred_boxes, shapes, images):
             scores = scores.detach().cpu().numpy()
             boxes = boxes.detach().cpu().numpy()
+            c, h, w = img.shape
+            ori_h, ori_w = shape
+            image_id = each_id + 1
+            boxes[:, 0] = boxes[:, 0] * ori_w / w
+            boxes[:, 1] = boxes[:, 1] * ori_h / h
+            boxes[:, 2] = boxes[:, 2] * ori_w / w
+            boxes[:, 3] = boxes[:, 3] * ori_h / h
+
             for (score, box) in zip(scores, boxes):
                 x1, y1, x2, y2 = box
                 anno = {
@@ -102,8 +114,14 @@ class LitModel(pl.LightningModule):
                     "score": float(score), 
                 }
                 self.anno_id += 1
-                self.predictions["predictions"].append(anno)
-
+                self.predictions["annotations"].append(anno)
+            img_info = {
+                "id": image_id, 
+                "height": 720,
+                "width": 1280,
+                "file_name": "None",
+            }
+            self.predictions["images"].append(img_info)
         self.log('test_reg_loss', reg_loss.item(), on_epoch=True)
         self.log('test_class_loss', class_loss.item(), on_epoch=True)
         self.log('test_loss', (class_loss + reg_loss).item(), on_epoch=True)
