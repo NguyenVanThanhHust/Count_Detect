@@ -83,7 +83,7 @@ class CarPK_Dataset(Dataset):
         box_xyxy = np.array(box_xyxy, dtype=np.float32)
 
         num_objs = len(box_xyxy)
-        labels = torch.ones((num_objs,), dtype=torch.int64)
+        labels = torch.zeros((num_objs,), dtype=torch.int64)
 
         image_id = torch.tensor([idx])
 

@@ -7,7 +7,6 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from layers.utils import BBoxTransform, ClipBoxes
-from evaluation.metrics import dice, jaccard
 
 class LitModel(pl.LightningModule):
     def __init__(self, model, loss, optim):
@@ -72,7 +71,6 @@ class LitModel(pl.LightningModule):
         self.log('train_reg_loss', reg_loss.item(), on_epoch=True)
         self.log('train_class_loss', class_loss.item(), on_epoch=True)
         self.log('train_loss', (class_loss + reg_loss).item(), on_epoch=True)
-        # print(reg_loss.item(), class_loss.item(), (class_loss + reg_loss).item())
         return reg_loss + class_loss
 
     def validation_step(self, batch, batch_idx):
