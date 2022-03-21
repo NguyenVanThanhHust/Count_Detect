@@ -2,6 +2,7 @@
 outputs/
 lightning_logs/
 resnet50-19c8e357.pth
+predictions.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

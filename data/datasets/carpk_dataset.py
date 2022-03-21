@@ -88,7 +88,6 @@ class CarPK_Dataset(Dataset):
 
         image_id = torch.tensor([idx])
 
-        # target["area"] = area
         # image, boxes, scale = self.coco_transform(image, box_xyxy)
         
         boxes = box_xyxy

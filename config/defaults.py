@@ -96,6 +96,7 @@ _C.SOLVER.IMS_PER_BATCH = 16
 # see 2 images per batch
 _C.TEST = CN()
 _C.TEST.IMS_PER_BATCH = 8
+_C.TEST.THRESHOLD = 0.5
 _C.TEST.WEIGHT = ""
 
 # ---------------------------------------------------------------------------- #

@@ -8,7 +8,7 @@ import torch
 sys.path.append('.')
 from config import cfg
 from data import make_data_loader
-from engine.trainer import do_test
+from engine.predictor import do_test
 from modeling import build_model, build_loss
 from solver import make_optimizer
 
@@ -72,6 +72,7 @@ def main():
         val_loader,
         None, 
         loss_fn,
+        cfg, 
     )
 
 
