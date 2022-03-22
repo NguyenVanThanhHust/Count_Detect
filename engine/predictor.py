@@ -46,10 +46,10 @@ class LitModel(pl.LightningModule):
                 all_scores.append([])
                 all_boxes.append([])
                 continue
-
+            # import pdb; pdb.set_trace()
             scores = scores[scores_over_thresh]
             anchorBoxes = torch.squeeze(transformed_anchors[i, :, :])
-            anchorBoxes = anchorBoxes[scores_over_thresh[:, 1]]
+            anchorBoxes = anchorBoxes[scores_over_thresh]
             anchors_nms_idx = nms(anchorBoxes, scores, 0.5)
             scores = scores[anchors_nms_idx]
             predicted_boxes = anchorBoxes[anchors_nms_idx]
@@ -94,6 +94,15 @@ class LitModel(pl.LightningModule):
         shapes = [t["shape"].detach().cpu().numpy() for t in targets]
         pred_scores, pred_boxes = post_processed_preds
         for each_id, scores, boxes, shape, img in zip(ids, pred_scores, pred_boxes, shapes, images):
+            if isinstance(scores, list):
+                img_info = {
+                    "id": image_id, 
+                    "height": 720,
+                    "width": 1280,
+                    "file_name": "None",
+                    }
+                self.predictions["images"].append(img_info)
+                continue
             scores = scores.detach().cpu().numpy()
             boxes = boxes.detach().cpu().numpy()
             c, h, w = img.shape
@@ -122,6 +131,7 @@ class LitModel(pl.LightningModule):
                 "file_name": "None",
             }
             self.predictions["images"].append(img_info)
+
         self.log('test_reg_loss', reg_loss.item(), on_epoch=True)
         self.log('test_class_loss', class_loss.item(), on_epoch=True)
         self.log('test_loss', (class_loss + reg_loss).item(), on_epoch=True)
