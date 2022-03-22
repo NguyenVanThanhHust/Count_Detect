@@ -46,7 +46,6 @@ class LitModel(pl.LightningModule):
                 all_scores.append([])
                 all_boxes.append([])
                 continue
-            # import pdb; pdb.set_trace()
             scores = scores[scores_over_thresh]
             anchorBoxes = torch.squeeze(transformed_anchors[i, :, :])
             anchorBoxes = anchorBoxes[scores_over_thresh]

@@ -50,9 +50,9 @@ _C.INPUT.PIXEL_STD = (0.229, 0.224, 0.225)
 # -----------------------------------------------------------------------------
 _C.DATASETS = CN()
 # List of the dataset names for training, as present in paths_catalog.py
-_C.DATASETS.TRAIN = ()
+_C.DATASETS.TRAIN = "CarPK_train"
 # List of the dataset names for testing, as present in paths_catalog.py
-_C.DATASETS.TEST = ()
+_C.DATASETS.TEST = "CarPK_test"
 
 # -----------------------------------------------------------------------------
 # DataLoader
