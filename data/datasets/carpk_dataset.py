@@ -89,7 +89,11 @@ class CarPK_Dataset(Dataset):
 
         # image, boxes, scale = self.coco_transform(image, box_xyxy)
         
-        boxes = box_xyxy
+        boxes = np.zeros(box_xyxy.shape, dtype=np.float32)
+        boxes[:, :2] = box_xyxy[:, :2]
+        boxes[:, 2] = box_xyxy[:, 2] - box_xyxy[:, 0] 
+        boxes[:, 3] = box_xyxy[:, 3] - box_xyxy[:, 1]
+
         if self.transforms is not None:
             results= self.transforms(image=image, bboxes=boxes, category_ids=labels)
         image = results["image"]

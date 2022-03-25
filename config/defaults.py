@@ -20,6 +20,13 @@ _C.MODEL = CN()
 _C.MODEL.DEVICE = "cuda"
 _C.MODEL.NUM_CLASSES = 2
 
+_C.MODEL.RETINANET = CN()
+_C.MODEL.RETINANET.TRAIN_SCORE_THRESH = 0.05
+_C.MODEL.RETINANET.TEST_SCORE_THRESH = 0.5
+_C.MODEL.RETINANET.TEST_KEEP = 1000
+_C.MODEL.RETINANET.TOP_N = 1000
+
+
 # -----------------------------------------------------------------------------
 # INPUT
 # -----------------------------------------------------------------------------

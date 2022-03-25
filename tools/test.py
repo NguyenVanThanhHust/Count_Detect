@@ -9,7 +9,7 @@ sys.path.append('.')
 from config import cfg
 from data import make_data_loader
 from engine.predictor import do_test
-from modeling import build_model, build_loss
+from modeling import build_model
 from solver import make_optimizer
 
 from utils.logger import setup_logger
@@ -65,13 +65,10 @@ def main():
 
     val_loader = make_data_loader(cfg, split="test")
 
-    loss_fn = build_loss(cfg)
-
     do_test(
         model,
         val_loader,
         None, 
-        loss_fn,
         cfg, 
     )
 

@@ -1,9 +1,7 @@
-from .retinanet import resnet50
-from .loss import FocalLoss
+from .retinanet import RetinaNet
+from .utils import convert_fixedbn_model
 
 def build_model(cfg):
-    model = resnet50(num_classes=cfg.MODEL.NUM_CLASSES, pretrained=True)
+    model = RetinaNet(cfg, )
+    model = convert_fixedbn_model(model)
     return model
-
-def build_loss(cfg):
-    return FocalLoss()

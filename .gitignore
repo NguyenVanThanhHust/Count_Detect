@@ -1,4 +1,5 @@
 # Outputs
+.vscode/
 outputs/
 lightning_logs/
 resnet50-19c8e357.pth

@@ -27,5 +27,4 @@ def make_data_loader(cfg, split="train"):
     data_loader = data.DataLoader(
         datasets, collate_fn=collate_fn, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers
     )
-
     return data_loader
