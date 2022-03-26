@@ -35,14 +35,14 @@
 #include <thrust/execution_policy.h>
 #include <thrust/gather.h>
 #include <thrust/sequence.h>
-#include <thrust/system/cuda/detail/cub/device/device_radix_sort.cuh>
-#include <thrust/system/cuda/detail/cub/iterator/counting_input_iterator.cuh>
+#include <cub/device/device_radix_sort.cuh>
+#include <cub/iterator/counting_input_iterator.cuh>
 
 constexpr int   kTPB     = 64;  // threads per block
 constexpr int   kCorners = 4;
 constexpr int   kPoints  = 8;
 
-namespace retinanet {
+namespace odtk {
 namespace cuda {
 
 class Vector {
@@ -105,10 +105,10 @@ __host__ __device__ void rotateLeft( T *array, int const &count ) {
 }
 
 __host__ __device__ static __inline__ float2 padfloat2( float2 a, float2 b ) {
-  float2 res;
-  res.x = a.x + b.x;
-  res.y = a.y + b.y;
-  return res;
+    float2 res;
+    res.x = a.x + b.x;
+    res.y = a.y + b.y;
+    return res;
 }
 
 __device__ float IntersectionArea( float2 *mrect, float2 *mrect_shift, float2 *intersection ) {
@@ -207,11 +207,11 @@ __global__ void nms_rotate_kernel(const int num_per_thread, const float threshol
           float2 pad;
 #pragma unroll
           for ( int b = 0; b < kCorners; b++ ) {
-            if ( ( iboxc[b].x * ibox.c - iboxc[b].y * ibox.s ) + icent.x == ( mboxc[b].x * mbox.c - mboxc[b].y * mbox.s ) + mcent.x )
+            if ((iboxc[b].x * ibox.c - iboxc[b].y * ibox.s) + icent.x == (mboxc[b].x * mbox.c - mboxc[b].y * mbox.s) + mcent.x)
               pad.x = 0.001f;
             else
               pad.x = 0.0f;
-            if ( ( iboxc[b].y * ibox.c + iboxc[b].x * ibox.s ) + icent.y == ( mboxc[b].y * mbox.c + mboxc[b].x * mbox.s ) + mcent.y )
+            if ((iboxc[b].y * ibox.c + iboxc[b].x * ibox.s) + icent.y == (mboxc[b].y * mbox.c + mboxc[b].x * mbox.s) + mcent.y)
               pad.y = 0.001f;
             else
               pad.y = 0.0f;
@@ -257,8 +257,9 @@ __global__ void nms_rotate_kernel(const int num_per_thread, const float threshol
   }
 }
 
-int nms_rotate(int batch_size, const void *const *inputs, void **outputs, size_t count, 
+int nms_rotate(int batch_size, const void *const *inputs, void *const *outputs, size_t count,
   int detections_per_im, float nms_thresh, void *workspace, size_t workspace_size, cudaStream_t stream ) {
+
   if ( !workspace || !workspace_size ) {
     // Return required scratch space size cub style
     workspace_size = get_size_aligned<bool>( count );    // flags
@@ -267,21 +268,11 @@ int nms_rotate(int batch_size, const void *const *inputs, void **outputs, size_t
     workspace_size += get_size_aligned<float>( count );  // scores
     workspace_size += get_size_aligned<float>( count );  // scores_sorted
     size_t temp_size_flag = 0;
-    thrust::cuda_cub::cub::DeviceSelect::Flagged(( void * )nullptr,
-                                                temp_size_flag,
-                                                thrust::cuda_cub::cub::CountingInputIterator<int>( count ),
-                                                ( bool * )nullptr,
-                                                ( int * )nullptr,
-                                                ( int * )nullptr,
-                                                count );
+    cub::DeviceSelect::Flagged((void*)nullptr, temp_size_flag,
+      cub::CountingInputIterator<int>(count), (bool*)nullptr, (int*)nullptr, (int*)nullptr, count);
     size_t temp_size_sort = 0;
-    thrust::cuda_cub::cub::DeviceRadixSort::SortPairsDescending(( void * )nullptr,
-                                                                temp_size_sort,
-                                                                ( float * )nullptr,
-                                                                ( float * )nullptr,
-                                                                ( int * )nullptr,
-                                                                ( int * )nullptr,
-                                                                count );
+    cub::DeviceRadixSort::SortPairsDescending((void*)nullptr, temp_size_sort, (float*)nullptr,
+      (float*)nullptr, (int*)nullptr, (int*)nullptr, count);
     workspace_size += std::max( temp_size_flag, temp_size_sort );
     return workspace_size;
   }
@@ -302,44 +293,22 @@ int nms_rotate(int batch_size, const void *const *inputs, void **outputs, size_t
     // Discard null scores
     thrust::transform( on_stream, in_scores, in_scores + count, flags, thrust::placeholders::_1 > 0.0f );
     int *num_selected = reinterpret_cast<int *>( indices_sorted );
-    thrust::cuda_cub::cub::DeviceSelect::Flagged(workspace,
-                                                workspace_size,
-                                                thrust::cuda_cub::cub::CountingInputIterator<int>( 0 ),
-                                                flags,
-                                                indices,
-                                                num_selected,
-                                                count,
-                                                stream );
+    cub::DeviceSelect::Flagged(workspace, workspace_size, cub::CountingInputIterator<int>(0), flags,
+      indices, num_selected, count, stream );
     cudaStreamSynchronize( stream );
     int num_detections = *thrust::device_pointer_cast( num_selected );
     // Sort scores and corresponding indices
     thrust::gather( on_stream, indices, indices + num_detections, in_scores, scores );
-    thrust::cuda_cub::cub::DeviceRadixSort::SortPairsDescending(workspace,
-                                                                workspace_size,
-                                                                scores,
-                                                                scores_sorted,
-                                                                indices,
-                                                                indices_sorted,
-                                                                num_detections,
-                                                                0,
-                                                                sizeof( *scores ) * 8,
-                                                                stream );  // From 8
+    cub::DeviceRadixSort::SortPairsDescending(workspace, workspace_size, scores, scores_sorted,
+      indices, indices_sorted, num_detections, 0, sizeof(*scores)*8, stream ); // From 8
     // Launch actual NMS kernel - 1 block with each thread handling n detections
-    const int max_threads    = 1024;
-    int       num_per_thread = ceil( ( float )num_detections / max_threads );
+    const int max_threads = 1024;
+    int num_per_thread = ceil((float)num_detections/max_threads);
     nms_rotate_kernel<<<1, max_threads, 0, stream>>>(
-        num_per_thread, nms_thresh, num_detections, indices_sorted, scores_sorted, in_classes, in_boxes );
+      num_per_thread, nms_thresh, num_detections, indices_sorted, scores_sorted, in_classes, in_boxes);
     // Re-sort with updated scores
-    thrust::cuda_cub::cub::DeviceRadixSort::SortPairsDescending(workspace,
-                                                                workspace_size,
-                                                                scores_sorted,
-                                                                scores,
-                                                                indices_sorted,
-                                                                indices,
-                                                                num_detections,
-                                                                0,
-                                                                sizeof( *scores ) * 8,
-                                                                stream );  // From 8
+    cub::DeviceRadixSort::SortPairsDescending(workspace, workspace_size, scores_sorted, scores,
+      indices_sorted, indices, num_detections, 0, sizeof( *scores ) * 8, stream );  // From 8
     // Gather filtered scores, boxes, classes
     num_detections = min( detections_per_im, num_detections );
     cudaMemcpyAsync( out_scores, scores, num_detections * sizeof *scores, cudaMemcpyDeviceToDevice, stream );
@@ -367,15 +336,15 @@ __global__ void iou_cuda_kernel(int const numBoxes, int const numAnchors,
     float2 pad;
 #pragma unroll
     for ( int b = 0; b < kCorners; b++ ) {
-      if ( b_box_vals[( static_cast<int>( tid / numAnchors ) * kCorners + b )].x == a_box_vals[( tid * kCorners + b ) % ( numAnchors * kCorners )].x )
+      if (b_box_vals[(static_cast<int>(tid/numAnchors) * kCorners + b)].x == a_box_vals[(tid * kCorners + b) % (numAnchors * kCorners)].x)
         pad.x = 0.001f;
       else
         pad.x = 0.0f;
-      if ( b_box_vals[( static_cast<int>( tid / numAnchors ) * kCorners + b )].y == a_box_vals[( tid * kCorners + b ) % ( numAnchors * kCorners )].y )
+      if (b_box_vals[(static_cast<int>(tid/numAnchors) * kCorners + b)].y == a_box_vals[(tid * kCorners + b) % (numAnchors * kCorners)].y)
         pad.y = 0.001f;
       else
         pad.y = 0.0f;
-      intersection[b] = padfloat2( b_box_vals[( static_cast<int>( tid / numAnchors ) * kCorners + b )], pad );
+      intersection[b] = padfloat2( b_box_vals[( static_cast<int>( tid / numAnchors ) * kCorners + b )], pad);
       rect1[b]        = b_box_vals[( static_cast<int>( tid / numAnchors ) * kCorners + b )];
       rect1_shift[b]  = b_box_vals[( static_cast<int>( tid / numAnchors ) * kCorners + b )];
       rect2[b]        = a_box_vals[( tid * kCorners + b ) % ( numAnchors * kCorners )];
@@ -405,7 +374,7 @@ __global__ void iou_cuda_kernel(int const numBoxes, int const numAnchors,
   }
 }
 
-int iou( const void *const *inputs, void **outputs, int num_boxes, int num_anchors, cudaStream_t stream ) {
+int iou( const void *const *inputs, void *const *outputs, int num_boxes, int num_anchors, cudaStream_t stream ) {
   auto boxes    = static_cast<const float2 *>( inputs[0] );
   auto anchors  = static_cast<const float2 *>( inputs[1] );
   auto iou_vals = static_cast<float *>( outputs[0] );

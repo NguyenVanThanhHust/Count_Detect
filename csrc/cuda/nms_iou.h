@@ -22,17 +22,16 @@
 
 #pragma once
 
-namespace retinanet {
+namespace odtk {
 namespace cuda {
 
 int nms_rotate(int batchSize,
-    const void *const *inputs, void **outputs,
+    const void *const *inputs, void *const *outputs,
     size_t count, int detections_per_im, float nms_thresh,
     void *workspace, size_t workspace_size, cudaStream_t stream);
 
 int iou(
-    const void *const *inputs, void **outputs,
+    const void *const *inputs, void *const *outputs,
     int num_boxes, int num_anchors, cudaStream_t stream);
-
 }
 }

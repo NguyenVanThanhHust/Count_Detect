@@ -24,11 +24,11 @@
 
 #include <vector>
 
-namespace retinanet {
+namespace odtk {
 namespace cuda {
 
 int decode_rotate(int batchSize,
-    const void *const *inputs, void **outputs,
+    const void *const *inputs, void *const *outputs,
     size_t height, size_t width, size_t scale,
     size_t num_anchors, size_t num_classes,
     const std::vector<float> &anchors, float score_thresh, int top_n,

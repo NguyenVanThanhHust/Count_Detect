@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -32,7 +33,7 @@
 using namespace std;
 using namespace nvinfer1;
 
-namespace retinanet {
+namespace odtk {
 
 // RetinaNet wrapper around TensorRT CUDA engine
 class Engine {
@@ -41,18 +42,19 @@ public:
     Engine(const string &engine_path, bool verbose=false);
 
     // Create engine from serialized onnx model
-    Engine(const char *onnx_model, size_t onnx_size, size_t batch, string precision,
-        float score_thresh, int top_n, const vector<vector<float>>& anchors, bool rotated,
-        float nms_thresh, int detections_per_im, const vector<string>& calibration_files,
+    
+    Engine(const char *onnx_model, size_t onnx_size, const vector<int>& dynamic_batch_opts,
+        string precision, float score_thresh, int top_n, const vector<vector<float>>& anchors,
+        bool rotated, float nms_thresh, int detections_per_im, const vector<string>& calibration_images, 
         string model_name, string calibration_table, bool verbose, size_t workspace_size=(1ULL << 30));
-
+    
     ~Engine();
 
     // Save model to path
     void save(const string &path);
 
     // Infer using pre-allocated GPU buffers {data, scores, boxes, classes}
-    void infer(vector<void *> &buffers);
+    void infer(vector<void *> &buffers, int batch);
 
     // Get (h, w) size of the fixed input
     vector<int> getInputSize();
@@ -67,9 +69,10 @@ public:
     int getStride();
     
 private:
-    IRuntime *_runtime = nullptr;
-    ICudaEngine *_engine = nullptr;
-    IExecutionContext *_context = nullptr;
+    std::unique_ptr<IRuntime> _runtime;
+    std::unique_ptr<ICudaEngine> _engine;
+    std::unique_ptr<IHostMemory> _plan;
+    std::unique_ptr<IExecutionContext> _context;
     cudaStream_t _stream = nullptr;
 
     void _load(const string &path);
