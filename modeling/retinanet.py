@@ -5,8 +5,8 @@ import torch.utils.model_zoo as model_zoo
 from torchvision.ops import nms
 
 import layers.backbone as backbones_mod
-from layers.box import generate_anchors
-from layers.utils import decode
+from layers.box import generate_anchors, snap_to_anchors
+from layers.utils import decode, nms
 from layers.loss import FocalLoss, SmoothL1Loss
 
 model_urls = {
@@ -49,9 +49,10 @@ class RetinaNet(nn.Module):
         self.classes = cfg.MODEL.NUM_CLASSES
 
         self.threshold_train = cfg.MODEL.RETINANET.TRAIN_SCORE_THRESH
-        self.top_n = cfg.MODEL.RETINANET.TOP_N
         self.nms_thresh = cfg.MODEL.RETINANET.TEST_SCORE_THRESH
-        self.num_detection = cfg.MODEL.RETINANET.TEST_KEEP
+
+        self.test_keep = cfg.MODEL.RETINANET.TEST_KEEP
+        self.train_keep = cfg.MODEL.RETINANET.TRAIN_KEEP
 
         self.stride = max([b.stride for _, b in self.backbones.items()])
 
@@ -68,6 +69,9 @@ class RetinaNet(nn.Module):
         self.box_head = make_head(4 * self.num_anchors) if not self.rotated_bbox \
                         else make_head(6 * self.num_anchors)  # theta -> cos(theta), sin(theta)
 
+        self.cls_criterion = FocalLoss()
+        self.box_criterion = SmoothL1Loss(beta=0.11)
+
 
     def __repr__(self):
         return '\n'.join([
@@ -76,7 +80,7 @@ class RetinaNet(nn.Module):
             '   classes: {}, anchors: {}'.format(self.classes, self.num_anchors)
         ])
 
-    def forward(self, x, rotated_bbox=None):
+    def forward(self, x, targets=None, rotated_bbox=None):
         # Backbones forward pass
         features = []
         for _, backbone in self.backbones.items():
@@ -85,9 +89,11 @@ class RetinaNet(nn.Module):
         # Heads forward pass
         cls_heads = [self.cls_head(t) for t in features]
         box_heads = [self.box_head(t) for t in features]
+
         if self.training:
-            return self._compute_loss(x, cls_heads, box_heads, targets.float())
-            
+            losses = self._compute_loss(x, cls_heads, box_heads, targets)
+            return losses
+
         cls_heads = [cls_head.sigmoid() for cls_head in cls_heads]
         
         decoded = []
@@ -98,8 +104,65 @@ class RetinaNet(nn.Module):
 
             # Decode and filter boxes
             decoded.append(decode(cls_head.contiguous(), box_head.contiguous(), stride, self.nms_thresh, 
-                                self.top_n, self.anchors[stride], self.rotated_bbox))
+                                self.train_keep, self.anchors[stride], self.rotated_bbox))
 
+        dets = [nms(*d, self.nms_thresh, self.test_keep) for d in decoded]
+
+        # decoded = [torch.cat(tensors, 1) for tensors in zip(*decoded)]
+        # results = nms(*decoded, self.nms_thresh, self.test_keep)
+        return dets
 
     def _extract_targets(self, targets, stride, size):
-        import pdb; pdb.set_trace()
+        global generate_anchors, snap_to_anchors
+        if self.rotated_bbox:
+            generate_anchors = generate_anchors_rotated
+            snap_to_anchors = snap_to_anchors_rotated
+        cls_target, box_target, depth = [], [], []
+        for target in targets:
+            bboxes = target["bboxes"]
+            category_ids = target["category_ids"].double()
+            index = category_ids != -1
+            keep_boxes = bboxes[index]
+            keep_category_ids = category_ids[index]
+
+            if stride not in self.anchors:
+                self.anchors[stride] = generate_anchors(stride, self.ratios, self.scales, self.angles)
+
+            anchors = self.anchors[stride]
+            if not self.rotated_bbox:
+                anchors = anchors.to(bboxes.device)
+
+            snapped = snap_to_anchors(keep_boxes, keep_category_ids, [s * stride for s in size[::-1]], stride, 
+                                    anchors, self.classes, bboxes.device, self.anchor_ious)
+            for l, s in zip((cls_target, box_target, depth), snapped): l.append(s)
+        
+        return torch.stack(cls_target), torch.stack(box_target), torch.stack(depth)
+
+    def _compute_loss(self, x, cls_heads, box_heads, targets):
+        cls_losses, box_losses, fg_targets = [], [], []
+        for cls_head, box_head in zip(cls_heads, box_heads):
+            size = cls_head.shape[-2:]
+            stride = x.shape[-1] / cls_head.shape[-1]
+
+            cls_target, box_target, depth = self._extract_targets(targets, stride, size)
+            fg_targets.append((depth > 0).sum().float().clamp(min=1))
+
+            cls_head = cls_head.view_as(cls_target).float()
+            cls_mask = (depth >= 0).expand_as(cls_target).float()
+            cls_loss = self.cls_criterion(cls_head, cls_target)
+            cls_loss = cls_mask * cls_loss
+            cls_losses.append(cls_loss.sum())
+
+            box_head = box_head.view_as(box_target).float()
+            box_mask = (depth > 0).expand_as(box_target).float()
+            box_loss = self.box_criterion(box_head, box_target)
+            box_loss = box_mask * box_loss
+            box_losses.append(box_loss.sum())
+
+        fg_targets = torch.stack(fg_targets).sum()
+        cls_loss = torch.stack(cls_losses).sum() / fg_targets
+        box_loss = torch.stack(box_losses).sum() / fg_targets
+        return cls_loss, box_loss
+
+
+

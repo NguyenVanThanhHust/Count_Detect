@@ -49,7 +49,7 @@ def delta2box(deltas, anchors, size, stride):
     ], 1)
 
 
-def snap_to_anchors(boxes, size, stride, anchors, num_classes, device, anchor_ious):
+def snap_to_anchors(boxes, classes, size, stride, anchors, num_classes, device, anchor_ious):
     'Snap target boxes (x, y, w, h) to anchors'
 
     num_anchors = anchors.size()[0] if anchors is not None else 1
@@ -60,7 +60,7 @@ def snap_to_anchors(boxes, size, stride, anchors, num_classes, device, anchor_io
                 torch.zeros([num_anchors, 4, height, width], device=device),
                 torch.zeros([num_anchors, 1, height, width], device=device))
 
-    boxes, classes = boxes.split(4, dim=1)
+    # boxes, classes = boxes.split(4, dim=1)
 
     # Generate anchors
     x, y = torch.meshgrid([torch.arange(0, size[i], stride, device=device, dtype=classes.dtype) for i in range(2)])
@@ -83,7 +83,7 @@ def snap_to_anchors(boxes, size, stride, anchors, num_classes, device, anchor_io
     box_target = box_target.view(num_anchors, 1, width, height, 4)
     box_target = box_target.transpose(1, 4).transpose(2, 3)
     box_target = box_target.squeeze().contiguous()
-
+    
     depth = torch.ones_like(overlap) * -1
     depth[overlap < anchor_ious[0]] = 0  # background
     depth[overlap >= anchor_ious[1]] = classes[indices][overlap >= anchor_ious[1]].squeeze() + 1  # objects

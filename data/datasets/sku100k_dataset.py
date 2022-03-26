@@ -61,45 +61,6 @@ class SKU100K_Dataset(Dataset):
     def __len__(self, ):
         return len(self.im_ids)
 
-    @staticmethod
-    def coco_transform(image, bboxes):
-        min_side=608
-        max_side=1024
-        rows, cols, cns = image.shape
-
-        smallest_side = min(rows, cols)
-
-        # rescale the image so the smallest side is min_side
-        scale = min_side / smallest_side
-
-        # check if the largest side is now greater than max_side, which can happen
-        # when images have a large aspect ratio
-        largest_side = max(rows, cols)
-
-        if largest_side * scale > max_side:
-            scale = max_side / largest_side
-
-        # resize the image with the computed scale
-        image = cv2.resize(image, (int(cols*scale), int(rows*scale)))
-
-        rows, cols, cns = image.shape
-
-        pad_w = 32 - rows%32
-        pad_h = 32 - cols%32
-
-        new_image = np.zeros((rows + pad_w, cols + pad_h, cns)).astype(np.float32)
-        new_image[:rows, :cols, :] = image.astype(np.float32)
-
-        new_bboxes = bboxes * scale
-        new_h, new_w, _ = new_image.shape
-        new_bboxes[:, 0] = np.clip(new_bboxes[:, 0], 0, new_w-1)
-        new_bboxes[:, 1] = np.clip(new_bboxes[:, 1], 0, new_h-1)
-        new_bboxes[:, 2] = np.clip(new_bboxes[:, 2], 0, new_w-1)
-        new_bboxes[:, 3] = np.clip(new_bboxes[:, 3], 0, new_h-1)
-
-        return new_image, new_bboxes, scale
-
-
     def __getitem__(self, idx):
         img_info = self.gts.loadImgs([idx+1])
         ann_ids = self.gts.getAnnIds([idx+1])
@@ -123,8 +84,6 @@ class SKU100K_Dataset(Dataset):
 
         image_id = torch.tensor([idx])
 
-        # image, boxes, scale = self.coco_transform(image, box_xyxy)
-        
         boxes = np.zeros(box_xyxy.shape, dtype=np.float32)
         boxes[:, :2] = box_xyxy[:, :2]
         boxes[:, 2] = box_xyxy[:, 2] - box_xyxy[:, 0] 
@@ -141,5 +100,7 @@ class SKU100K_Dataset(Dataset):
             "category_ids": torch.tensor(category_ids), 
             "shape": torch.from_numpy(np.array([height, width]))
         }
+        # if len(image.shape) == 4:
+        #     image = torch.squeeze(image)
         return image, targets
 

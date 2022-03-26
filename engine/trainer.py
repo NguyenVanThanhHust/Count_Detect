@@ -3,8 +3,9 @@ import torch
 import pytorch_lightning as pl
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
-
 from torchvision import transforms
+
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 class LitModel(pl.LightningModule):
     def __init__(self, model, optim):
@@ -17,9 +18,8 @@ class LitModel(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         images, targets = batch 
-        images = torch.stack(images, dim=0)
         targets = [{k: v for k, v in t.items()} for t in targets]
-        losses = self.model(images)
+        losses = self.model(images, targets)
         class_loss, reg_loss = losses
         self.log('train_reg_loss', reg_loss.item(), on_epoch=True)
         self.log('train_class_loss', class_loss.item(), on_epoch=True)
@@ -27,30 +27,25 @@ class LitModel(pl.LightningModule):
         return reg_loss + class_loss
 
     def validation_step(self, batch, batch_idx):
-        images, targets = batch 
-        images = torch.stack(images, dim=0)
+        images, targets = batch
         targets = [{k: v for k, v in t.items()} for t in targets]
         preds = self.model(images)
-        losses = self.loss(preds, targets)
-        class_loss, reg_loss = losses
-        self.log('val_reg_loss', reg_loss.item(), on_epoch=True)
-        self.log('val_class_loss', class_loss.item(), on_epoch=True)
-        self.log('val_loss', (class_loss + reg_loss).item(), on_epoch=True)
-        return class_loss + reg_loss
-        
-
+        # class_loss, reg_loss = losses
+        # self.log('val_reg_loss', reg_loss.item(), on_epoch=True)
+        # self.log('val_class_loss', class_loss.item(), on_epoch=True)
+        # self.log('val_loss', (class_loss + reg_loss).item(), on_epoch=True)
+        return 
+    
     def test_step(self, batch, batch_idx):
         images, targets = batch 
-        images = torch.stack(images, dim=0)
         targets = [{k: v for k, v in t.items()} for t in targets]
         preds = self.model(images)
-        losses = self.loss(preds, targets)
-        class_loss, reg_loss = losses
-        self.log('test_reg_loss', reg_loss.item(), on_epoch=True)
-        self.log('test_class_loss', class_loss.item(), on_epoch=True)
-        self.log('test_loss', (class_loss + reg_loss).item(), on_epoch=True)
-        return class_loss + reg_loss
-        
+        # losses = self.loss(preds, targets)
+        # class_loss, reg_loss = losses
+        # self.log('val_reg_loss', reg_loss.item(), on_epoch=True)
+        # self.log('val_class_loss', class_loss.item(), on_epoch=True)
+        # self.log('val_loss', (class_loss + reg_loss).item(), on_epoch=True)
+        return 
 
     def configure_optimizers(self):
         return self.optim
@@ -70,7 +65,15 @@ def do_train(
     # ------------
     # training
     # ------------
-    trainer = pl.Trainer(devices=1, accelerator="gpu", gradient_clip_val=0.5, max_epochs=cfg.SOLVER.MAX_EPOCHS)
+    checkpoint_callback = ModelCheckpoint(dirpath=cfg.OUTPUT_DIR,
+                                            filename='{epoch}-{train_cls_loss:.2f}-{train_reg_loss:.2f}-{train_loss:.2f}',
+                                            every_n_epochs=1 )
+    trainer = pl.Trainer(devices=1, accelerator="gpu", 
+                        gradient_clip_val=0.5, 
+                        max_epochs=cfg.SOLVER.MAX_EPOCHS, 
+                        # , overfit_batches=0.01
+                        callbacks=[checkpoint_callback], 
+                        )
     trainer.fit(my_model, train_loader, val_loader)
 
     # ------------
