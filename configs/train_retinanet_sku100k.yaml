@@ -3,6 +3,7 @@ INPUT:
   MAX_SIZE_TRAIN : 1333
 MODEL:
   NUM_CLASSES: 2
+  WEIGHT: "./retinanet_rn50fpn/retinanet_rn50fpn.pth"
 DATASETS:
   TRAIN : "SKU110K_train"
   TEST : "SKU110K_test"
