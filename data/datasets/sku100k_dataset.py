@@ -61,6 +61,45 @@ class SKU100K_Dataset(Dataset):
     def __len__(self, ):
         return len(self.im_ids)
 
+    @staticmethod
+    def coco_transform(image, bboxes):
+        min_side=800
+        max_side=1333
+        rows, cols, cns = image.shape
+
+        smallest_side = min(rows, cols)
+
+        # rescale the image so the smallest side is min_side
+        scale = min_side / smallest_side
+
+        # check if the largest side is now greater than max_side, which can happen
+        # when images have a large aspect ratio
+        largest_side = max(rows, cols)
+
+        if largest_side * scale > max_side:
+            scale = max_side / largest_side
+
+        # resize the image with the computed scale
+        image = cv2.resize(image, (int(cols*scale), int(rows*scale)))
+
+        rows, cols, cns = image.shape
+
+        pad_w = 32 - rows%32
+        pad_h = 32 - cols%32
+
+        new_image = np.zeros((rows + pad_w, cols + pad_h, cns)).astype(np.float32)
+        new_image[:rows, :cols, :] = image.astype(np.float32)
+
+        new_bboxes = bboxes * scale
+        new_h, new_w, _ = new_image.shape
+        new_bboxes[:, 0] = np.clip(new_bboxes[:, 0], 0, new_w)
+        new_bboxes[:, 1] = np.clip(new_bboxes[:, 1], 0, new_h)
+        new_bboxes[:, 2] = np.clip(new_bboxes[:, 2], 0, new_w)
+        new_bboxes[:, 3] = np.clip(new_bboxes[:, 3], 0, new_h)
+
+        return new_image, new_bboxes, scale
+
+
     def __getitem__(self, idx):
         img_info = self.gts.loadImgs([idx+1])
         ann_ids = self.gts.getAnnIds([idx+1])
@@ -78,6 +117,8 @@ class SKU100K_Dataset(Dataset):
             box_xyxy.append([x1, y1, min(x2, width), min(y2, height)])
 
         box_xyxy = np.array(box_xyxy, dtype=np.float32)
+
+        image, box_xyxy, scale = self.coco_transform(image, box_xyxy)
 
         num_objs = len(box_xyxy)
         labels = torch.zeros((num_objs,), dtype=torch.int64)

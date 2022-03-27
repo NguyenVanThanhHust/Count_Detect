@@ -11,8 +11,8 @@ def collate_fn(batch):
         t["category_ids"] = torch.cat([t["category_ids"], torch.ones(max_det - len(t["category_ids"])) *-1])
         new_targets.append(t)
     targets = tuple(new_targets)
-    # import pdb; pdb.set_trace()
-    # Pad data to match max batch dimensions
+
+    # Pad data to match max batch dimensions    
     sizes = [d.size()[-2:] for d in data]
     w, h = (max(dim) for dim in zip(*sizes))
 
