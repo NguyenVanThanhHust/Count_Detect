@@ -48,7 +48,24 @@ class LitModel(pl.LightningModule):
         return 
 
     def configure_optimizers(self):
-        return self.optim
+        # https://github.com/PyTorchLightning/pytorch-lightning/issues/328
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
+
+        def lr_foo(epoch):
+            if epoch < self.hparams.warm_up_step:
+                # warm up lr
+                lr_scale = 0.1 ** (self.hparams.warm_up_step - epoch)
+            else:
+                lr_scale = 0.95 ** epoch
+
+            return lr_scale
+
+        scheduler = LambdaLR(
+            optimizer,
+            lr_lambda=lr_foo
+        )
+
+        return [optimizer], [scheduler]
 
 
 def do_train(
