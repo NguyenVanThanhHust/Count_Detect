@@ -1,3 +1,4 @@
+import os
 import torch.nn as nn
 import torch
 import math
@@ -72,6 +73,51 @@ class RetinaNet(nn.Module):
         self.cls_criterion = FocalLoss()
         self.box_criterion = SmoothL1Loss(beta=0.11)
 
+
+    def initialize(self, pre_trained):
+        if pre_trained:
+            # Initialize using weights from pre-trained model
+            if not os.path.isfile(pre_trained):
+                raise ValueError('No checkpoint {}'.format(pre_trained))
+
+            print('Fine-tuning weights from {}...'.format(os.path.basename(pre_trained)))
+            state_dict = self.state_dict()
+            chk = torch.load(pre_trained, map_location=lambda storage, loc: storage)
+            ignored = ['cls_head.8.bias', 'cls_head.8.weight']
+            if self.rotated_bbox:
+                ignored += ['box_head.8.bias', 'box_head.8.weight']
+            weights = {k: v for k, v in chk['state_dict'].items() if k not in ignored}
+            state_dict.update(weights)
+            self.load_state_dict(state_dict)
+
+            del chk, weights
+            torch.cuda.empty_cache()
+            
+        else:
+            # Initialize backbone(s)
+            for _, backbone in self.backbones.items():
+                backbone.initialize()
+
+            # Initialize heads
+            def initialize_layer(layer):
+                if isinstance(layer, nn.Conv2d):
+                    nn.init.normal_(layer.weight, std=0.01)
+                    if layer.bias is not None:
+                        nn.init.constant_(layer.bias, val=0)
+
+            self.cls_head.apply(initialize_layer)
+            self.box_head.apply(initialize_layer)
+
+        # Initialize class head prior
+        def initialize_prior(layer):
+            pi = 0.01
+            b = - math.log((1 - pi) / pi)
+            nn.init.constant_(layer.bias, b)
+            nn.init.normal_(layer.weight, std=0.01)
+
+        self.cls_head[-1].apply(initialize_prior)
+        if self.rotated_bbox:
+            self.box_head[-1].apply(initialize_prior)
 
     def __repr__(self):
         return '\n'.join([

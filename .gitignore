@@ -4,6 +4,7 @@ outputs/
 lightning_logs/
 resnet50-19c8e357.pth
 predictions.json
+retinanet_rn50fpn/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
