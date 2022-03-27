@@ -7,6 +7,8 @@ import json
 import logging
 import numpy as np
 import os
+from os.path import join
+
 from collections import OrderedDict
 import torch
 from fvcore.common.file_io import PathManager
@@ -35,7 +37,7 @@ class COCOEvaluator(DatasetEvaluator):
     instance segmentation, or keypoint detection dataset.
     """
 
-    def __init__(self, gt_json_file, pred_json_file, image_set=None, visualize_res=False, output_dir=None):
+    def __init__(self, gt_json_file, pred_json_file, img_folder=None, output_dir=None):
         """
         Args:
             dataset_name (str): name of the dataset to be evaluated.
@@ -78,12 +80,12 @@ class COCOEvaluator(DatasetEvaluator):
         self._do_evaluation = "annotations" in self._coco_api.dataset
         self.counting_dict = dict()
         self._predictions = []
-        self._image_set = image_set
-        self.visualize_res = visualize_res
+        self.img_folder = img_folder
         self._vis_dir = osp.join(self._output_dir, "vis_res")
         os.makedirs(self._vis_dir, exist_ok=True)
         self.aps = []
         self.im_ids = self.pred_coco_api.getImgIds()
+        self._image_set = None
 
     def _tasks_from_config(self, cfg):
         """
@@ -111,6 +113,7 @@ class COCOEvaluator(DatasetEvaluator):
             prediction = {"image_id": img_id}
             results = []
             num_pred = len(pred_annos)
+
             for anno in pred_annos:
                 box = anno["bbox"]
                 x1, y1, x2, y2 = box
@@ -125,9 +128,28 @@ class COCOEvaluator(DatasetEvaluator):
                     "score": anno["score"],
                 }
                 results.append(result)
-    
+
             gt_anno_ids = self._coco_api.getAnnIds([img_id])
             gt_annos = self._coco_api.loadAnns(gt_anno_ids)
+
+            if self.img_folder is not None:
+                gt_info = self._coco_api.loadImgs([img_id])
+                img_name = gt_info[0]["file_name"]
+                img_path = join(self.img_folder, img_name)
+                img = cv2.imread(img_path)
+                for anno in pred_annos:
+                    box = anno["bbox"]
+                    x1, y1, x2, y2 = box
+                    x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
+                    img = cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                for anno in gt_annos:
+                    box = anno["bbox"]
+                    x1, y1, w, h = box
+                    x1, y1, x2, y2 = int(x1), int(y1), int(x1+w), int(y1+h)
+                    img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+                output_img_path = join(self._vis_dir, img_name)
+                cv2.imwrite(output_img_path, img)
                 
             prediction["instances"] = results
             self._predictions.append(prediction)
@@ -428,6 +450,7 @@ def get_args_parser():
     parser.add_argument('--gt_json_path', default="./gts.json", type=str)
     parser.add_argument('-p', '--pred_json_path', default="./outputs/predictions.json", type=str)
     parser.add_argument('-o', '--output_dir', default="./outputs/visualize/", type=str)
+    parser.add_argument('--img_folder', default=None, type=str)
 
     args = parser.parse_args()
     return args
@@ -437,9 +460,10 @@ if __name__ == "__main__":
     gt_json_path = args.gt_json_path
     pred_json_path = args.pred_json_path
     output_dir = args.output_dir
+    img_folder = args.img_folder
     coco_evaluator = COCOEvaluator(gt_json_file = gt_json_path, 
                             pred_json_file = pred_json_path, 
                             output_dir=output_dir,  
-                            visualize_res= False)
+                            img_folder=img_folder)
     coco_evaluator.process()
     coco_evaluator.evaluate()
