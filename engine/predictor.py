@@ -10,17 +10,12 @@ from torchvision.ops import nms
 
 from torchvision import transforms
 
-from layers.utils import BBoxTransform, ClipBoxes
-
 class LitModel(pl.LightningModule):
-    def __init__(self, model, loss, optim, thresh=0.5):
+    def __init__(self, model, optim, thresh=0.5):
         super().__init__()
         self.model = model
-        self.loss = loss
         self.optim = optim
 
-        self.regressBoxes = BBoxTransform()
-        self.clipBoxes = ClipBoxes()
         self.thresh = thresh
 
         self.predictions = dict()
@@ -82,18 +77,40 @@ class LitModel(pl.LightningModule):
 
     def test_step(self, batch, batch_idx):
         images, targets = batch 
-        images = torch.stack(images, dim=0)
         targets = [{k: v for k, v in t.items()} for t in targets]
         preds = self.model(images)
-        losses = self.loss(preds, targets)
-        class_loss, reg_loss = losses
-
-        post_processed_preds = self.forward(images)
+        batch_size = images.shape[0]
+        processed_preds = []
+        for i in range(batch_size):
+            each_pred = {
+                "scores": [],
+                "boxes": [], 
+                "classes": [], 
+            }
+            processed_preds.append(each_pred)
+        for pred in preds:
+            scores, boxes, classes = pred
+            for idx, (score, box, each_class) in enumerate(zip(scores, boxes, classes)):
+                processed_preds[idx]["scores"].append(score)
+                processed_preds[idx]["boxes"].append(box)
+                processed_preds[idx]["classes"].append(each_class)
+                
         ids = [t["id"].item() for t in targets]
         shapes = [t["shape"].detach().cpu().numpy() for t in targets]
-        pred_scores, pred_boxes = post_processed_preds
-        for each_id, scores, boxes, shape, img in zip(ids, pred_scores, pred_boxes, shapes, images):
-            if isinstance(scores, list):
+        for each_id, shape, img, pred in zip(ids, shapes, images, processed_preds):
+            scores = pred["scores"]
+            boxes = pred["boxes"]
+            classes = pred["classes"]
+            scores = torch.cat(scores, dim=0)
+            boxes = torch.cat(boxes, dim=0)
+            classes = torch.cat(classes, dim=0)
+            indexes = scores > 0
+            scores = scores[indexes]
+            boxes = boxes[indexes]
+            classes = classes[indexes]
+            scores = scores.detach().cpu().numpy()
+            boxes = boxes.detach().cpu().numpy()
+            if len(scores) == 0:
                 img_info = {
                     "id": image_id, 
                     "height": 720,
@@ -102,8 +119,6 @@ class LitModel(pl.LightningModule):
                     }
                 self.predictions["images"].append(img_info)
                 continue
-            scores = scores.detach().cpu().numpy()
-            boxes = boxes.detach().cpu().numpy()
             c, h, w = img.shape
             ori_h, ori_w = shape
             image_id = each_id + 1
@@ -131,10 +146,7 @@ class LitModel(pl.LightningModule):
             }
             self.predictions["images"].append(img_info)
 
-        self.log('test_reg_loss', reg_loss.item(), on_epoch=True)
-        self.log('test_class_loss', class_loss.item(), on_epoch=True)
-        self.log('test_loss', (class_loss + reg_loss).item(), on_epoch=True)
-        return class_loss + reg_loss
+        return 
 
     def test_epoch_end(self, outputs):
         with open("./outputs/predictions.json", "w") as handle:
@@ -147,11 +159,10 @@ def do_test(
         model,
         val_loader,
         optimizer,
-        loss_fn,
         cfg, 
     ):
 
-    my_model = LitModel(model, loss_fn, optimizer, thresh=cfg.TEST.THRESHOLD)
+    my_model = LitModel(model, optimizer, thresh=cfg.TEST.THRESHOLD)
     trainer = pl.Trainer(devices=1, accelerator="gpu")
     # ------------
     # testing
