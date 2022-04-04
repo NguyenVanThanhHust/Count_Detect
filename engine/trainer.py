@@ -30,21 +30,12 @@ class LitModel(pl.LightningModule):
         images, targets = batch
         targets = [{k: v for k, v in t.items()} for t in targets]
         preds = self.model(images)
-        # class_loss, reg_loss = losses
-        # self.log('val_reg_loss', reg_loss.item(), on_epoch=True)
-        # self.log('val_class_loss', class_loss.item(), on_epoch=True)
-        # self.log('val_loss', (class_loss + reg_loss).item(), on_epoch=True)
         return 
     
     def test_step(self, batch, batch_idx):
         images, targets = batch 
         targets = [{k: v for k, v in t.items()} for t in targets]
         preds = self.model(images)
-        # losses = self.loss(preds, targets)
-        # class_loss, reg_loss = losses
-        # self.log('val_reg_loss', reg_loss.item(), on_epoch=True)
-        # self.log('val_class_loss', class_loss.item(), on_epoch=True)
-        # self.log('val_loss', (class_loss + reg_loss).item(), on_epoch=True)
         return 
 
     def configure_optimizers(self):

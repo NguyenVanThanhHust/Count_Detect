@@ -10,15 +10,6 @@ from layers.box import generate_anchors, snap_to_anchors
 from layers.utils import decode, nms
 from layers.loss import FocalLoss, SmoothL1Loss
 
-model_urls = {
-    'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
-    'resnet34': 'https://download.pytorch.org/models/resnet34-333f7ec4.pth',
-    'resnet50': 'https://download.pytorch.org/models/resnet50-19c8e357.pth',
-    'resnet101': 'https://download.pytorch.org/models/resnet101-5d3b4d8f.pth',
-    'resnet152': 'https://download.pytorch.org/models/resnet152-b121ed2d.pth',
-}
-
-
 class RetinaNet(nn.Module):
     def __init__(self,
                 cfg,  
@@ -210,5 +201,6 @@ class RetinaNet(nn.Module):
         box_loss = torch.stack(box_losses).sum() / fg_targets
         return cls_loss, box_loss
 
-
+    def export(self, ):
+        return 
 
